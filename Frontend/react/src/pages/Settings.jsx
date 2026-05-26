@@ -1,6 +1,7 @@
 import { useState } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 import { useToast } from "../hooks/useToast";
+import { useTheme } from "../hooks/useTheme";
 import { apiService } from "../services/api";
 import { 
     FiSettings, 
@@ -14,6 +15,7 @@ import {
 
 function Settings() {
     const { showToast } = useToast();
+    const { theme, setTheme } = useTheme();
 
     // Profile State
     const [profile, setProfile] = useState({
@@ -34,11 +36,7 @@ function Settings() {
         critical: true
     });
 
-    // Theme Preferences
-    const [visuals, setVisuals] = useState({
-        theme: "dark",
-        glassEffect: "high"
-    });
+    const [glassEffect, setGlassEffect] = useState("high");
 
     const handleSaveProfile = (e) => {
         e.preventDefault();
@@ -207,25 +205,50 @@ function Settings() {
 
                         <div className="space-y-5">
                             {/* Theme option */}
-                            <div className="flex items-center justify-between">
+                            <div className="space-y-3">
                                 <div>
-                                    <h4 className="text-xs font-bold text-slate-200">Color Profile Theme</h4>
-                                    <p className="text-[10px] text-slate-500 mt-0.5">Toggle light/dark interfaces</p>
+                                    <h4 className="text-xs font-bold theme-heading">Appearance Mode</h4>
+                                    <p className="text-[10px] theme-muted mt-0.5">
+                                        Present Mode (dark) for kiosk-style scanning · Light Mode for daytime use
+                                    </p>
                                 </div>
-                                <select
-                                    className="glass-input px-3 py-1.5 text-xs rounded-xl"
-                                    value={visuals.theme}
-                                    onChange={(e) => {
-                                        setVisuals({ ...visuals, theme: e.target.value });
-                                        showToast(`Theme changed to: ${e.target.value}`, "info");
-                                    }}
-                                >
-                                    <option value="dark">Deep Indigo Dark</option>
-                                    <option value="light">Warm Slate Light (Simulated)</option>
-                                </select>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setTheme("dark");
+                                            showToast("Present Mode (Dark) enabled", "success");
+                                        }}
+                                        className={`p-4 rounded-xl border text-left transition-all ${
+                                            theme === "dark"
+                                                ? "border-indigo-500/50 bg-indigo-500/10 ring-1 ring-indigo-500/30"
+                                                : "theme-divider border hover:border-indigo-500/30"
+                                        }`}
+                                    >
+                                        <span className="text-lg mb-2 block">🌙</span>
+                                        <span className="text-xs font-bold theme-heading block">Present Mode</span>
+                                        <span className="text-[10px] theme-muted">Dark · high contrast</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setTheme("light");
+                                            showToast("Light Mode enabled", "success");
+                                        }}
+                                        className={`p-4 rounded-xl border text-left transition-all ${
+                                            theme === "light"
+                                                ? "border-indigo-500/50 bg-indigo-500/10 ring-1 ring-indigo-500/30"
+                                                : "theme-divider border hover:border-indigo-500/30"
+                                        }`}
+                                    >
+                                        <span className="text-lg mb-2 block">☀️</span>
+                                        <span className="text-xs font-bold theme-heading block">Light Mode</span>
+                                        <span className="text-[10px] theme-muted">Bright · office friendly</span>
+                                    </button>
+                                </div>
                             </div>
 
-                            <hr className="border-slate-800" />
+                            <hr className="theme-divider border-t" />
 
                             {/* Glassmorphism strength */}
                             <div className="flex items-center justify-between">
@@ -238,11 +261,11 @@ function Settings() {
                                         <button
                                             key={level}
                                             onClick={() => {
-                                                setVisuals({ ...visuals, glassEffect: level });
+                                                setGlassEffect(level);
                                                 showToast(`Glassmorphism set to: ${level}`, "info");
                                             }}
                                             className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase transition-all ${
-                                                visuals.glassEffect === level
+                                                glassEffect === level
                                                     ? "bg-indigo-500/10 border-indigo-500/40 text-indigo-400"
                                                     : "border-slate-800 hover:border-slate-700 text-slate-500 hover:text-slate-300"
                                             }`}
@@ -280,7 +303,7 @@ function Settings() {
                                 />
                             </label>
 
-                            <hr className="border-slate-800" />
+                            <hr className="theme-divider border-t" />
 
                             {/* Toggle 2: Real-time overlay alerts */}
                             <label className="flex items-center justify-between cursor-pointer p-1">
@@ -299,7 +322,7 @@ function Settings() {
                                 />
                             </label>
 
-                            <hr className="border-slate-800" />
+                            <hr className="theme-divider border-t" />
 
                             {/* Toggle 3: Critical matching errors */}
                             <label className="flex items-center justify-between cursor-pointer p-1">

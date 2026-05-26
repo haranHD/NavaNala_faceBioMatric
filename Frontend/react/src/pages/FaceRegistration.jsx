@@ -14,10 +14,10 @@ import {
 
 const CAPTURE_STEPS = [
     { step: 1, label: "Look straight into the camera", angle: "Front View" },
-    { step: 2, label: "Turn your head slightly to the left", angle: "Left Profile" },
-    { step: 3, label: "Turn your head slightly to the right", angle: "Right Profile" },
-    { step: 4, label: "Tilt your head slightly up", angle: "Slightly Up" },
-    { step: 5, label: "Tilt your head slightly down", angle: "Slightly Down" },
+    { step: 2, label: "Turn your head slightly left (keep face visible)", angle: "Slight Left" },
+    { step: 3, label: "Turn your head slightly right (keep face visible)", angle: "Slight Right" },
+    { step: 4, label: "Tilt your head slightly up (eyes still visible)", angle: "Slight Up" },
+    { step: 5, label: "Tilt your head slightly down (eyes still visible)", angle: "Slight Down" },
 ];
 
 function FaceRegistration() {
@@ -84,7 +84,7 @@ function FaceRegistration() {
         }
 
         if (capturedImages.length < CAPTURE_STEPS.length) {
-            showToast("Please capture all 3 required angles", "error");
+            showToast(`Please capture all ${CAPTURE_STEPS.length} required angles`, "error");
             return;
         }
 
@@ -96,7 +96,11 @@ function FaceRegistration() {
             showToast("Face biometric registered successfully with 5 angles!", "success");
             navigate("/admin/employees");
         } catch (error) {
-            showToast("Failed to enroll face", "error");
+            const detail = error.response?.data?.detail;
+            const message = typeof detail === "string"
+                ? detail
+                : error.message || "Failed to enroll face";
+            showToast(message, "error");
         } finally {
             setIsRegistering(false);
         }
@@ -128,6 +132,7 @@ function FaceRegistration() {
                                 <option value="">Select Employee...</option>
                                 {employees.map((emp) => (
                                     <option key={emp.employee_id} value={emp.employee_id}>
+                                        {emp.employee_code ? `${emp.employee_code} — ` : ""}
                                         {emp.name} ({emp.is_registered ? "Registered" : "Pending"})
                                     </option>
                                 ))}
@@ -136,6 +141,12 @@ function FaceRegistration() {
 
                         {currentEmployee && (
                             <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 mb-6 text-sm space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Employee ID:</span>
+                                    <span className="font-mono font-semibold text-indigo-400">
+                                        {currentEmployee.employee_code || `#${currentEmployee.employee_id}`}
+                                    </span>
+                                </div>
                                 <div className="flex justify-between">
                                     <span className="text-slate-400">Department:</span>
                                     <span className="font-semibold text-slate-200">{currentEmployee.department}</span>
@@ -228,6 +239,8 @@ function FaceRegistration() {
                                     ref={webcamRef}
                                     audio={false}
                                     screenshotFormat="image/jpeg"
+                                    screenshotQuality={0.92}
+                                    videoConstraints={{ facingMode: "user", width: 640, height: 480 }}
                                     className="w-full h-full object-cover"
                                 />
                                 
@@ -271,7 +284,7 @@ function FaceRegistration() {
                                     <div key={idx} className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-800 shadow-lg">
                                         <img src={img} className="w-full h-full object-cover" />
                                         <span className="absolute bottom-1 left-1 bg-slate-950/80 text-[8px] text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase">
-                                            {CAPTURE_STEPS[idx].day || CAPTURE_STEPS[idx].angle.split(" ")[0]}
+                                            {CAPTURE_STEPS[idx].angle.split(" ")[0]}
                                         </span>
                                     </div>
                                 ))}

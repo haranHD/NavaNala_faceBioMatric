@@ -14,9 +14,13 @@ import {
 function LiveAttendance() {
     const { showToast } = useToast();
     const webcamRef = useRef(null);
+    const employeesRef = useRef([]);
+    const pauseUntilRef = useRef(0);
+    const lastUnknownToastRef = useRef(0);
     const [employees, setEmployees] = useState([]);
     const [isScanning, setIsScanning] = useState(true);
-    const [scanStatus, setScanStatus] = useState("Ready"); // Ready, Scanning, Success, Unknown
+    const [scanStatus, setScanStatus] = useState("Ready"); // Ready, Scanning, Verifying, Success, Unknown
+    const [verifyHint, setVerifyHint] = useState("");
     const [lastMatch, setLastMatch] = useState(null);
     const [recentLogs, setRecentLogs] = useState([]);
 
@@ -28,6 +32,7 @@ function LiveAttendance() {
         try {
             const data = await apiService.getEmployees();
             setEmployees(data);
+            employeesRef.current = data;
         } catch (error) {
             console.error("Failed to load employees for lookup", error);
         }
@@ -40,23 +45,27 @@ function LiveAttendance() {
         if (isScanning) {
             intervalId = setInterval(async () => {
                 if (!webcamRef.current) return;
-                
+                if (Date.now() < pauseUntilRef.current) return;
+
                 setScanStatus("Scanning");
+                setVerifyHint("");
                 const imageSrc = webcamRef.current.getScreenshot();
-                
+
                 if (!imageSrc) return;
 
                 try {
                     const result = await apiService.recognizeFace(imageSrc);
-                    
+                    const roster = employeesRef.current;
+                    const findEmployee = (id) =>
+                        roster.find((e) => String(e.employee_id) === String(id));
+
                     if (result.matched && result.employee_id) {
-                        const matchedEmp = employees.find(e => e.employee_id === result.employee_id);
-                        
+                        const matchedEmp = findEmployee(result.employee_id);
+
                         if (matchedEmp) {
-                            // Mark attendance
-                            await apiService.markAttendance({
+                            const att = await apiService.markAttendance({
                                 employee_id: matchedEmp.employee_id,
-                                status: "Present"
+                                confidence: result.confidence,
                             });
 
                             const logEntry = {
@@ -64,35 +73,62 @@ function LiveAttendance() {
                                 name: matchedEmp.name,
                                 department: matchedEmp.department,
                                 confidence: result.confidence,
+                                event: att.event_type,
+                                status: att.status,
+                                warnings: att.warnings || [],
+                                working_hours: att.working_hours,
                                 time: new Date().toLocaleTimeString("en-US", {
                                     hour: "2-digit",
                                     minute: "2-digit",
-                                    second: "2-digit"
-                                })
+                                    second: "2-digit",
+                                }),
                             };
 
                             setLastMatch(logEntry);
-                            setRecentLogs(prev => [logEntry, ...prev.slice(0, 4)]);
+                            setRecentLogs((prev) => [logEntry, ...prev.slice(0, 4)]);
                             setScanStatus("Success");
-                            showToast(`Present: ${matchedEmp.name}`, "success");
+                            setVerifyHint("");
+                            const warn = att.warnings?.length ? ` — ${att.warnings[0]}` : "";
+                            const step = att.event_type ? ` [${att.event_type.replace("_", " ")}]` : "";
+                            showToast(`${att.message}${step}: ${matchedEmp.name}${warn}`, att.warnings?.length ? "error" : "success");
+                            setVerifyHint(att.next_expected_event ? `Next: ${att.next_expected_event}` : "");
+                            pauseUntilRef.current = Date.now() + 5000;
                         }
-                    } else if (result.waiting) {
-                        setScanStatus("Scanning"); // Still Verifying
+                    } else if (result.waiting && result.employee_id) {
+                        const pending = findEmployee(result.employee_id);
+                        setScanStatus("Verifying");
+                        setVerifyHint(
+                            pending
+                                ? `Verifying ${pending.name}… (${Math.round((result.confidence || 0) * 100)}%)`
+                                : "Verifying identity…"
+                        );
+                    } else if (result.reason === "no_face") {
+                        setScanStatus("Scanning");
+                        setVerifyHint("Move closer — face not detected");
                     } else {
                         setScanStatus("Unknown");
                         setLastMatch(null);
-                        showToast("Unknown face detected", "error");
+                        setVerifyHint("");
+                        const now = Date.now();
+                        if (now - lastUnknownToastRef.current > 4000) {
+                            lastUnknownToastRef.current = now;
+                            showToast("Face not recognized. Re-register if needed.", "error");
+                        }
                     }
                 } catch (error) {
+                    const detail = error.response?.data?.detail;
+                    if (detail) {
+                        showToast(typeof detail === "string" ? detail : "Attendance error", "error");
+                    }
                     console.error("Recognition error", error);
                 }
-            }, 800); // Scan every 800ms for multi-frame validation
+            }, 600);
         }
 
         return () => {
             if (intervalId) clearInterval(intervalId);
         };
-    }, [isScanning, employees]);
+    }, [isScanning, showToast]);
 
     const toggleScanning = () => {
         setIsScanning(!isScanning);
@@ -119,6 +155,8 @@ function LiveAttendance() {
                                     ref={webcamRef}
                                     audio={false}
                                     screenshotFormat="image/jpeg"
+                                    screenshotQuality={0.92}
+                                    videoConstraints={{ facingMode: "user", width: 640, height: 480 }}
                                     className="w-full h-full object-cover"
                                 />
 
@@ -128,11 +166,13 @@ function LiveAttendance() {
                                 {/* Circular Scanner Frame */}
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                     <div className={`w-56 h-56 rounded-full border-2 border-dashed transition-all duration-300 ${
-                                        scanStatus === "Success" 
-                                            ? "border-emerald-500" 
-                                            : scanStatus === "Unknown" 
-                                                ? "border-rose-500" 
-                                                : "border-indigo-500/50"
+                                        scanStatus === "Success"
+                                            ? "border-emerald-500"
+                                            : scanStatus === "Unknown"
+                                                ? "border-rose-500"
+                                                : scanStatus === "Verifying"
+                                                    ? "border-amber-400"
+                                                    : "border-indigo-500/50"
                                     }`}></div>
                                 </div>
                             </>
@@ -202,9 +242,10 @@ function LiveAttendance() {
                                     <FiUser className="w-6 h-6 text-slate-600" />
                                 </div>
                                 <p className="text-xs max-w-xs leading-relaxed">
-                                    {isScanning 
-                                        ? "Align your face in the camera scanner. Detections will register automatically."
-                                        : "Scanner is paused. Enable scanner to begin verification."}
+                                    {verifyHint ||
+                                        (isScanning
+                                            ? "Align your face in the camera scanner. Detections will register automatically."
+                                            : "Scanner is paused. Enable scanner to begin verification.")}
                                 </p>
                             </div>
                         )}

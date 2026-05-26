@@ -3,7 +3,7 @@ import Navbar from "../components/Navbar";
 
 function AdminLayout({ children }) {
     return (
-        <div className="flex min-h-screen bg-[#0b0f19]">
+        <div className="flex min-h-screen theme-page-bg transition-colors duration-300">
             {/* Sidebar (fixed w-64) */}
             <Sidebar />
 

@@ -4,7 +4,8 @@ import {
     FiUsers, 
     FiCamera, 
     FiActivity, 
-    FiClock, 
+    FiClock,
+    FiFileText,
     FiSettings, 
     FiLogOut 
 } from "react-icons/fi";
@@ -18,6 +19,7 @@ function Sidebar() {
         { name: "Register Face", path: "/admin/register-face", icon: <FiCamera className="w-5 h-5" /> },
         { name: "Live Attendance", path: "/admin/live-attendance", icon: <FiActivity className="w-5 h-5" /> },
         { name: "History Logs", path: "/admin/history", icon: <FiClock className="w-5 h-5" /> },
+        { name: "Permissions", path: "/admin/permissions", icon: <FiFileText className="w-5 h-5" /> },
         { name: "Settings", path: "/admin/settings", icon: <FiSettings className="w-5 h-5" /> },
     ];
 
@@ -27,7 +29,7 @@ function Sidebar() {
     };
 
     return (
-        <div className="w-64 glass-panel border-r border-slate-800/80 h-screen fixed top-0 left-0 flex flex-col justify-between p-6 z-20">
+        <div className="w-64 glass-panel border-r theme-divider h-screen fixed top-0 left-0 flex flex-col justify-between p-6 z-20">
             <div>
                 {/* Logo Section */}
                 <div className="flex items-center gap-3 mb-8 px-2">
@@ -38,7 +40,7 @@ function Sidebar() {
                         <h1 className="text-lg font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                             FaceBio
                         </h1>
-                        <span className="text-[10px] text-indigo-400 font-medium tracking-wider uppercase">
+                        <span className="text-[10px] font-medium tracking-wider uppercase" style={{ color: "var(--logo-subtitle)" }}>
                             Attendance System
                         </span>
                     </div>
@@ -55,7 +57,7 @@ function Sidebar() {
                                 `flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                                     isActive
                                         ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-300 border-l-4 border-indigo-500 pl-3"
-                                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                                        : "theme-muted hover:theme-heading hover:bg-[var(--nav-hover-bg)]"
                                 }`
                             }
                         >

@@ -1,177 +1,146 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 import { apiService } from "../services/api";
 import { useToast } from "../hooks/useToast";
-import { 
-    FiSearch, 
-    FiDownload, 
-    FiChevronLeft, 
+import {
+    FiSearch,
+    FiDownload,
+    FiChevronLeft,
     FiChevronRight,
-    FiCalendar,
-    FiFilter
+    FiFilter,
 } from "react-icons/fi";
+
+function formatTime(iso) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
+}
+
+function formatDate(iso) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("en-US");
+}
+
+function statusClass(status) {
+    const s = (status || "").toLowerCase();
+    if (s.includes("late") || s.includes("exceeded") || s.includes("early") || s === "absent") {
+        return "bg-rose-500/10 text-rose-400 border border-rose-500/20";
+    }
+    if (s.includes("permission")) {
+        return "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+    }
+    if (s === "present" || s === "in progress") {
+        return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+    }
+    return "bg-slate-500/10 text-slate-400 border border-slate-500/20";
+}
+
+function rowViolation(log) {
+    return log.late_status || log.lunch_exceeded_status || log.early_checkout_status;
+}
 
 function AttendanceHistory() {
     const { showToast } = useToast();
     const [logs, setLogs] = useState([]);
-    const [employees, setEmployees] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-
-    // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [deptFilter, setDeptFilter] = useState("All");
     const [dateFilter, setDateFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("All");
-
-    // Pagination
+    const [genderFilter, setGenderFilter] = useState("All");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
 
-    useEffect(() => {
-        loadHistoryData();
-    }, []);
-
-    const loadHistoryData = async () => {
+    const loadHistoryData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const emps = await apiService.getEmployees();
-            const atts = await apiService.getAttendance();
-            
-            setEmployees(emps);
-            
-            // Map attendance with employee information
-            const mappedLogs = atts.map((att) => {
-                const emp = emps.find(e => e.employee_id === att.employee_id);
-                return {
-                    id: att.attendance_id,
-                    employee_id: att.employee_id,
-                    name: emp ? emp.name : `Employee #${att.employee_id}`,
-                    department: emp ? emp.department : "N/A",
-                    check_in: att.check_in,
-                    status: att.status
-                };
-            }).sort((a, b) => new Date(b.check_in) - new Date(a.check_in)); // Sort newest first
-
-            setLogs(mappedLogs);
-        } catch (error) {
+            const filters = {
+                department: deptFilter,
+                gender: genderFilter,
+                status: statusFilter,
+            };
+            if (dateFilter) filters.date = dateFilter;
+            const atts = await apiService.getAttendance(filters);
+            setLogs(atts);
+        } catch {
             showToast("Failed to load attendance logs", "error");
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [dateFilter, deptFilter, genderFilter, statusFilter, showToast]);
 
-    // Filter Logic
+    useEffect(() => {
+        loadHistoryData();
+    }, [loadHistoryData]);
+
     const filteredLogs = logs.filter((log) => {
-        const matchesSearch = 
-            log.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            log.employee_id.toString().includes(searchQuery);
-
-        const matchesDept = deptFilter === "All" || log.department === deptFilter;
-        
-        const matchesStatus = statusFilter === "All" || log.status === statusFilter;
-
-        let matchesDate = true;
-        if (dateFilter) {
-            const filterDateStr = new Date(dateFilter).toDateString();
-            const logDateStr = new Date(log.check_in).toDateString();
-            matchesDate = filterDateStr === logDateStr;
-        }
-
-        return matchesSearch && matchesDept && matchesStatus && matchesDate;
+        const q = searchQuery.toLowerCase();
+        return (
+            (log.employee_name || "").toLowerCase().includes(q) ||
+            String(log.employee_id).includes(q) ||
+            (log.employee_code || "").toLowerCase().includes(q)
+        );
     });
 
-    // Pagination Logic
-    const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+    const totalPages = Math.ceil(filteredLogs.length / itemsPerPage) || 1;
     const paginatedLogs = filteredLogs.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
     );
 
-    const handlePrevPage = () => {
-        if (currentPage > 1) setCurrentPage(currentPage - 1);
-    };
-
-    const handleNextPage = () => {
-        if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-    };
-
-    // Reset page on filter change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, deptFilter, dateFilter, statusFilter]);
+    }, [searchQuery, deptFilter, dateFilter, statusFilter, genderFilter]);
 
-    // CSV Exporter
     const exportToCSV = () => {
-        if (filteredLogs.length === 0) {
-            showToast("No data available to export", "error");
-            return;
-        }
-
-        const headers = ["Log ID", "Employee ID", "Employee Name", "Department", "Date", "Time", "Status"];
-        const rows = filteredLogs.map((log) => {
-            const dateObj = new Date(log.check_in);
-            const dateStr = dateObj.toLocaleDateString("en-US");
-            const timeStr = dateObj.toLocaleTimeString("en-US", { hour12: false });
-            return [
-                log.id,
-                log.employee_id,
-                `"${log.name}"`,
-                `"${log.department}"`,
-                dateStr,
-                timeStr,
-                log.status
-            ];
-        });
-
-        const csvContent = "data:text/csv;charset=utf-8," 
-            + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `Attendance_Export_${new Date().toISOString().slice(0, 10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        showToast("CSV Export downloaded successfully!", "success");
+        window.open(
+            apiService.exportAttendanceCsvUrl({
+                date: dateFilter || undefined,
+                department: deptFilter,
+                gender: genderFilter,
+                status: statusFilter,
+            }),
+            "_blank"
+        );
     };
 
     return (
         <AdminLayout>
-            {/* Filter Dashboard Header */}
             <div className="glass-panel p-6 rounded-2xl mb-6 space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                    <h2 className="text-base font-bold text-slate-200 flex items-center gap-2">
+                    <h2 className="text-base font-bold theme-heading flex items-center gap-2">
                         <FiFilter className="text-indigo-400" />
                         Log Filters
                     </h2>
                     <button
                         onClick={exportToCSV}
-                        className="glass-btn flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white cursor-pointer"
+                        className="glass-btn flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white"
                     >
                         <FiDownload /> Export CSV
                     </button>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Search query */}
-                    <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
-                            <FiSearch className="w-4 h-4" />
-                        </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div className="relative lg:col-span-2">
+                        <FiSearch className="absolute left-3 top-2.5 w-4 h-4 theme-muted" />
                         <input
                             type="text"
-                            placeholder="Search Name or ID..."
-                            className="w-full glass-input pl-10 pr-4 py-2 text-xs rounded-xl"
+                            placeholder="Search name or ID..."
+                            className="w-full glass-input pl-10 py-2 text-xs rounded-xl"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-
-                    {/* Department */}
+                    <input
+                        type="date"
+                        className="glass-input px-3 py-2 text-xs rounded-xl"
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value)}
+                    />
                     <select
-                        className="glass-input px-4 py-2 text-xs rounded-xl"
+                        className="glass-input px-3 py-2 text-xs rounded-xl"
                         value={deptFilter}
                         onChange={(e) => setDeptFilter(e.target.value)}
                     >
@@ -180,93 +149,99 @@ function AttendanceHistory() {
                         <option value="Product">Product</option>
                         <option value="Operations">Operations</option>
                         <option value="Executive">Executive</option>
-                        <option value="Editorial">Editorial</option>
                     </select>
-
-                    {/* Date picker */}
-                    <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-                            <FiCalendar className="w-4 h-4" />
-                        </span>
-                        <input
-                            type="date"
-                            className="w-full glass-input pl-10 pr-4 py-2 text-xs rounded-xl"
-                            value={dateFilter}
-                            onChange={(e) => setDateFilter(e.target.value)}
-                        />
-                    </div>
-
-                    {/* Status */}
                     <select
-                        className="glass-input px-4 py-2 text-xs rounded-xl"
+                        className="glass-input px-3 py-2 text-xs rounded-xl"
+                        value={genderFilter}
+                        onChange={(e) => setGenderFilter(e.target.value)}
+                    >
+                        <option value="All">All Genders</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                    <select
+                        className="glass-input px-3 py-2 text-xs rounded-xl lg:col-span-2"
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
                     >
                         <option value="All">All Statuses</option>
                         <option value="Present">Present</option>
+                        <option value="Late Entry">Late Entry</option>
+                        <option value="Lunch Break Exceeded">Lunch Break Exceeded</option>
+                        <option value="Early Checkout">Early Checkout</option>
+                        <option value="Permission Approved">Permission Approved</option>
                         <option value="Absent">Absent</option>
+                        <option value="In Progress">In Progress</option>
                     </select>
                 </div>
             </div>
 
-            {/* Attendance Logs Table */}
             <div className="glass-panel rounded-2xl overflow-hidden mb-6">
                 <div className="overflow-x-auto">
                     <table className="glass-table">
                         <thead>
                             <tr>
-                                <th>Log ID</th>
-                                <th>Emp ID</th>
+                                <th>Employee ID</th>
                                 <th>Employee Name</th>
                                 <th>Department</th>
-                                <th>Check-in Date & Time</th>
+                                <th>Date</th>
+                                <th>Check-In</th>
+                                <th>Lunch Out</th>
+                                <th>Lunch In</th>
+                                <th>Check-Out</th>
+                                <th>Hours</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="6" className="text-center py-10">
-                                        <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
+                                    <td colSpan="10" className="text-center py-10">
+                                        <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto" />
                                     </td>
                                 </tr>
-                            ) : paginatedLogs.map((log) => {
-                                const dateObj = new Date(log.check_in);
-                                return (
-                                    <tr key={log.id}>
-                                        <td className="font-mono text-xs text-slate-500">
-                                            #{log.id}
-                                        </td>
+                            ) : (
+                                paginatedLogs.map((log) => (
+                                    <tr
+                                        key={log.attendance_id}
+                                        className={rowViolation(log) ? "bg-rose-500/5" : ""}
+                                    >
                                         <td className="font-mono text-xs text-indigo-400">
-                                            #{String(log.employee_id).padStart(4, '0')}
+                                            {log.employee_code || log.employee_id}
                                         </td>
-                                        <td className="font-semibold text-slate-200">
-                                            {log.name}
+                                        <td className="font-semibold theme-heading">
+                                            {log.employee_name}
                                         </td>
-                                        <td>{log.department}</td>
+                                        <td>{log.department || "—"}</td>
                                         <td className="text-xs">
-                                            {dateObj.toLocaleDateString("en-US")} {dateObj.toLocaleTimeString("en-US", {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                                second: "2-digit"
-                                            })}
+                                            {formatDate(log.attendance_date || log.check_in)}
+                                        </td>
+                                        <td className="text-xs">{formatTime(log.check_in_time)}</td>
+                                        <td className="text-xs">{formatTime(log.lunch_out_time)}</td>
+                                        <td className="text-xs">{formatTime(log.lunch_in_time)}</td>
+                                        <td className="text-xs">{formatTime(log.check_out_time)}</td>
+                                        <td className="font-mono text-xs text-indigo-400">
+                                            {log.working_hours ? `${log.working_hours}h` : "—"}
+                                            {log.overtime_hours > 0 && (
+                                                <span className="block text-amber-400 text-[10px]">
+                                                    OT {log.overtime_hours}h
+                                                </span>
+                                            )}
                                         </td>
                                         <td>
-                                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                                                log.status === 'Present' 
-                                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                                                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                            }`}>
+                                            <span
+                                                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusClass(log.status)}`}
+                                            >
                                                 {log.status}
                                             </span>
                                         </td>
                                     </tr>
-                                );
-                            })}
+                                ))
+                            )}
                             {!isLoading && paginatedLogs.length === 0 && (
                                 <tr>
-                                    <td colSpan="6" className="text-center text-slate-500 py-10">
-                                        No log records found matching the filters.
+                                    <td colSpan="10" className="text-center theme-muted py-10">
+                                        No records for selected filters.
                                     </td>
                                 </tr>
                             )}
@@ -275,26 +250,25 @@ function AttendanceHistory() {
                 </div>
             </div>
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
                 <div className="flex justify-between items-center px-2">
-                    <span className="text-xs text-slate-400">
-                        Showing page <span className="font-semibold text-slate-200">{currentPage}</span> of <span className="font-semibold text-slate-200">{totalPages}</span>
+                    <span className="text-xs theme-muted">
+                        Page {currentPage} of {totalPages}
                     </span>
                     <div className="flex gap-2">
                         <button
-                            onClick={handlePrevPage}
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
-                            className="p-2 rounded-lg border border-slate-850 bg-slate-900/40 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            className="p-2 rounded-lg theme-toggle-btn border disabled:opacity-30"
                         >
-                            <FiChevronLeft className="w-4 h-4" />
+                            <FiChevronLeft />
                         </button>
                         <button
-                            onClick={handleNextPage}
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                             disabled={currentPage === totalPages}
-                            className="p-2 rounded-lg border border-slate-850 bg-slate-900/40 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            className="p-2 rounded-lg theme-toggle-btn border disabled:opacity-30"
                         >
-                            <FiChevronRight className="w-4 h-4" />
+                            <FiChevronRight />
                         </button>
                     </div>
                 </div>

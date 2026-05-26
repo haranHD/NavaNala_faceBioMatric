@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+backend/venv/
+backend/cv_models/*.onnx
+node_modules/
+dist/

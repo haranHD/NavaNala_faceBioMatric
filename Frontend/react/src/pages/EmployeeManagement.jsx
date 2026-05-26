@@ -28,8 +28,12 @@ function EmployeeManagement() {
     const [formData, setFormData] = useState({
         name: "",
         department: "Engineering",
-        role: "Developer"
+        role: "Developer",
+        gender: "",
+        employee_code: "",
+        idMode: "auto",
     });
+    const [nextAutoCode, setNextAutoCode] = useState("");
 
     // Search, filter & paginate states
     const [searchQuery, setSearchQuery] = useState("");
@@ -53,9 +57,29 @@ function EmployeeManagement() {
         }
     };
 
-    const handleOpenAddModal = () => {
+    const fetchNextCode = async () => {
+        try {
+            const data = await apiService.getNextEmployeeCode();
+            setNextAutoCode(data.employee_code);
+            return data.employee_code;
+        } catch {
+            const year = new Date().getFullYear();
+            setNextAutoCode(`0001-${year}`);
+            return `0001-${year}`;
+        }
+    };
+
+    const handleOpenAddModal = async () => {
         setEditingEmployee(null);
-        setFormData({ name: "", department: "Engineering", role: "Developer" });
+        const code = await fetchNextCode();
+        setFormData({
+            name: "",
+            department: "Engineering",
+            role: "Developer",
+            gender: "",
+            employee_code: code,
+            idMode: "auto",
+        });
         setIsModalOpen(true);
     };
 
@@ -64,7 +88,10 @@ function EmployeeManagement() {
         setFormData({
             name: emp.name,
             department: emp.department || "Engineering",
-            role: emp.role || "Developer"
+            role: emp.role || "Developer",
+            gender: emp.gender || "",
+            employee_code: emp.employee_code || "",
+            idMode: "manual",
         });
         setIsModalOpen(true);
     };
@@ -97,27 +124,50 @@ function EmployeeManagement() {
             showToast("Name is required", "error");
             return;
         }
+        if (!formData.gender) {
+            showToast("Gender is required", "error");
+            return;
+        }
 
         try {
+            const payload = {
+                name: formData.name,
+                department: formData.department,
+                role: formData.role,
+                gender: formData.gender,
+                employee_code: formData.idMode === "manual" ? formData.employee_code : null,
+                auto_generate_code: formData.idMode === "auto",
+            };
+
             if (editingEmployee) {
-                await apiService.updateEmployee(editingEmployee.employee_id, formData);
+                await apiService.updateEmployee(editingEmployee.employee_id, {
+                    ...payload,
+                    employee_code: formData.employee_code,
+                    auto_generate_code: false,
+                });
                 showToast("Employee updated successfully", "success");
             } else {
-                await apiService.createEmployee(formData);
-                showToast("Employee registered successfully", "success");
+                const created = await apiService.createEmployee(payload);
+                showToast(
+                    `Employee registered — ID: ${created.employee_code || created.employee_id}`,
+                    "success"
+                );
             }
             setIsModalOpen(false);
             loadEmployees();
         } catch (error) {
-            showToast("Operation failed", "error");
+            const detail = error.response?.data?.detail;
+            showToast(typeof detail === "string" ? detail : "Operation failed", "error");
         }
     };
 
     // Filter and Search Logic
     const filteredEmployees = employees.filter((emp) => {
-        const matchesSearch = 
-            emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            emp.employee_id.toString().includes(searchQuery);
+        const code = (emp.employee_code || "").toLowerCase();
+        const matchesSearch =
+            emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            emp.employee_id.toString().includes(searchQuery) ||
+            code.includes(searchQuery.toLowerCase());
         
         const matchesDept = deptFilter === "All" || emp.department === deptFilter;
 
@@ -192,10 +242,11 @@ function EmployeeManagement() {
                     <table className="glass-table">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>Employee ID</th>
                                 <th>Name</th>
                                 <th>Department</th>
                                 <th>Role</th>
+                                <th>Gender</th>
                                 <th>Face Status</th>
                                 <th className="text-center">Actions</th>
                             </tr>
@@ -203,14 +254,14 @@ function EmployeeManagement() {
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="6" className="text-center py-10">
+                                    <td colSpan="7" className="text-center py-10">
                                         <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
                                     </td>
                                 </tr>
                             ) : paginatedEmployees.map((emp) => (
                                 <tr key={emp.employee_id}>
                                     <td className="font-mono text-xs text-indigo-400">
-                                        #{String(emp.employee_id).padStart(4, '0')}
+                                        {emp.employee_code || `#${String(emp.employee_id).padStart(4, "0")}`}
                                     </td>
                                     <td>
                                         <div className="flex items-center gap-3">
@@ -222,6 +273,7 @@ function EmployeeManagement() {
                                     </td>
                                     <td>{emp.department || "N/A"}</td>
                                     <td>{emp.role || "User"}</td>
+                                    <td>{emp.gender || "—"}</td>
                                     <td>
                                         <div className="flex flex-col gap-1 items-start">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
@@ -288,7 +340,7 @@ function EmployeeManagement() {
                             ))}
                             {!isLoading && paginatedEmployees.length === 0 && (
                                 <tr>
-                                    <td colSpan="6" className="text-center text-slate-500 py-10">
+                                    <td colSpan="7" className="text-center text-slate-500 py-10">
                                         No employees found matching the filters.
                                     </td>
                                 </tr>
@@ -340,8 +392,72 @@ function EmployeeManagement() {
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {/* Employee ID */}
                             <div>
-                                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                <label className="text-xs font-semibold theme-muted uppercase tracking-wider block mb-2">
+                                    Employee ID
+                                </label>
+                                {!editingEmployee && (
+                                    <div className="flex gap-2 mb-3">
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                const code = await fetchNextCode();
+                                                setFormData((f) => ({
+                                                    ...f,
+                                                    idMode: "auto",
+                                                    employee_code: code,
+                                                }));
+                                            }}
+                                            className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                                                formData.idMode === "auto"
+                                                    ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-400"
+                                                    : "theme-divider border theme-muted"
+                                            }`}
+                                        >
+                                            Auto-generate
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setFormData((f) => ({ ...f, idMode: "manual" }))
+                                            }
+                                            className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                                                formData.idMode === "manual"
+                                                    ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-400"
+                                                    : "theme-divider border theme-muted"
+                                            }`}
+                                        >
+                                            Enter manually
+                                        </button>
+                                    </div>
+                                )}
+                                {formData.idMode === "auto" && !editingEmployee ? (
+                                    <div className="glass-input px-4 py-2.5 rounded-xl text-sm font-mono text-indigo-400 flex justify-between items-center">
+                                        <span>{formData.employee_code || nextAutoCode}</span>
+                                        <span className="text-[10px] theme-muted uppercase">Next in sequence</span>
+                                    </div>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        className="w-full glass-input px-4 py-2.5 rounded-xl text-sm font-mono"
+                                        placeholder="e.g. 0001-2026"
+                                        value={formData.employee_code}
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                employee_code: e.target.value,
+                                            })
+                                        }
+                                    />
+                                )}
+                                <p className="text-[10px] theme-muted mt-1.5">
+                                    Format: 4-digit sequence + year (example: 0001-{new Date().getFullYear()})
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold theme-muted uppercase tracking-wider block mb-1.5">
                                     Full Name
                                 </label>
                                 <input
@@ -381,6 +497,23 @@ function EmployeeManagement() {
                                     value={formData.role}
                                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                                 />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold theme-muted uppercase tracking-wider block mb-1.5">
+                                    Gender
+                                </label>
+                                <select
+                                    name="gender"
+                                    required
+                                    className="w-full glass-input px-4 py-2.5 rounded-xl text-sm"
+                                    value={formData.gender}
+                                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                                >
+                                    <option value="">Select Gender</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
                             </div>
 
                             <button

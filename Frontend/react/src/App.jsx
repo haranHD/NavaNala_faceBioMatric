@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ToastProvider } from "./hooks/useToast";
+import { ThemeProvider } from "./hooks/useTheme";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
@@ -8,11 +9,13 @@ import EmployeeManagement from "./pages/EmployeeManagement";
 import FaceRegistration from "./pages/FaceRegistration";
 import LiveAttendance from "./pages/LiveAttendance";
 import AttendanceHistory from "./pages/AttendanceHistory";
+import Permissions from "./pages/Permissions";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 function App() {
   return (
+    <ThemeProvider>
     <ToastProvider>
       <BrowserRouter>
         <Routes>
@@ -35,6 +38,9 @@ function App() {
           <Route path="/admin/history" element={
             <ProtectedRoute><AttendanceHistory /></ProtectedRoute>
           } />
+          <Route path="/admin/permissions" element={
+            <ProtectedRoute><Permissions /></ProtectedRoute>
+          } />
           <Route path="/admin/settings" element={
             <ProtectedRoute><Settings /></ProtectedRoute>
           } />
@@ -44,6 +50,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </ToastProvider>
+    </ThemeProvider>
   );
 }
 

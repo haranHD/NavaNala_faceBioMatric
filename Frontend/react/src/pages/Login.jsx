@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../hooks/useToast";
 import { FiMail, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
+import ThemeToggle from "../components/ThemeToggle";
 
 function Login() {
     const navigate = useNavigate();
@@ -56,7 +57,10 @@ function Login() {
     };
 
     return (
-        <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-[#070b13] px-4">
+        <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden theme-page-bg-alt px-4">
+            <div className="absolute top-6 right-6 z-20">
+                <ThemeToggle />
+            </div>
             {/* Animated glowing background blobs */}
             <div className="absolute top-1/4 left-1/4 w-80 h-80 rounded-full bg-indigo-600/20 blur-3xl pulse-ring"></div>
             <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-purple-600/20 blur-3xl pulse-ring" style={{ animationDelay: '1.5s' }}></div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { FiCalendar, FiClock, FiBell, FiUser } from "react-icons/fi";
+import ThemeToggle from "./ThemeToggle";
 
 function Navbar() {
     const location = useLocation();
@@ -24,6 +25,8 @@ function Navbar() {
                 return "Live Attendance Feed";
             case "/admin/history":
                 return "Attendance Logs";
+            case "/admin/permissions":
+                return "Permission Management";
             case "/admin/settings":
                 return "System Settings";
             default:
@@ -48,13 +51,13 @@ function Navbar() {
     };
 
     return (
-        <div className="glass-panel border-b border-slate-800/80 px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 rounded-2xl mb-6">
+        <div className="glass-panel border-b theme-divider px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 rounded-2xl mb-6">
             {/* Title Section */}
             <div>
-                <h1 className="text-xl font-bold text-slate-100">
+                <h1 className="text-xl font-bold theme-heading">
                     {getPageTitle()}
                 </h1>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs theme-muted mt-0.5">
                     Real-time Face Biometric Tracking
                 </p>
             </div>
@@ -62,8 +65,8 @@ function Navbar() {
             {/* Time, Notifications & Profile */}
             <div className="flex flex-wrap items-center gap-6 w-full md:w-auto justify-between md:justify-end">
                 {/* Date & Time display */}
-                <div className="flex items-center gap-4 text-slate-300 text-sm bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-800/50">
-                    <div className="flex items-center gap-1.5 border-r border-slate-800 pr-3">
+                <div className="flex items-center gap-4 theme-text text-sm theme-surface px-4 py-2 rounded-xl">
+                    <div className="flex items-center gap-1.5 border-r theme-divider pr-3">
                         <FiCalendar className="text-indigo-400" />
                         <span>{formatDate(time)}</span>
                     </div>
@@ -74,20 +77,22 @@ function Navbar() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    <ThemeToggle compact />
+
                     {/* Notifications bell */}
-                    <button className="w-10 h-10 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 flex items-center justify-center text-slate-300 hover:text-white transition-colors relative">
+                    <button className="w-10 h-10 rounded-xl theme-toggle-btn flex items-center justify-center transition-colors relative">
                         <FiBell className="w-5 h-5" />
                         <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-indigo-500 ring-2 ring-slate-900"></span>
                     </button>
 
                     {/* Divider */}
-                    <div className="w-px h-6 bg-slate-800"></div>
+                    <div className="w-px h-6 theme-divider bg-[var(--divider)]"></div>
 
                     {/* Admin Profile */}
                     <div className="flex items-center gap-3">
                         <div className="text-right hidden sm:block">
-                            <h2 className="text-sm font-semibold text-slate-200">Admin</h2>
-                            <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Super Administrator</p>
+                            <h2 className="text-sm font-semibold theme-heading">Admin</h2>
+                            <p className="text-[10px] theme-muted font-medium uppercase tracking-wider">Super Administrator</p>
                         </div>
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/10 border border-indigo-400/20">
                             <FiUser className="w-5 h-5" />

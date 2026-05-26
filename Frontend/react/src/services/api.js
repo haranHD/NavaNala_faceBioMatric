@@ -9,10 +9,23 @@ const apiClient = axios.create({
     },
 });
 
+function attendanceParams(filters = {}) {
+    const params = {};
+    if (filters.date) params.date = filters.date;
+    if (filters.employee_id) params.employee_id = filters.employee_id;
+    if (filters.department && filters.department !== 'All') params.department = filters.department;
+    if (filters.gender && filters.gender !== 'All') params.gender = filters.gender;
+    return params;
+}
+
 export const apiService = {
-    // 👤 EMPLOYEES
     async getEmployees() {
         const response = await apiClient.get('/employees');
+        return response.data;
+    },
+
+    async getNextEmployeeCode() {
+        const response = await apiClient.get('/employees/next-code');
         return response.data;
     },
 
@@ -36,9 +49,43 @@ export const apiService = {
         return response.data;
     },
 
-    // 🗓️ ATTENDANCE
-    async getAttendance() {
-        const response = await apiClient.get('/attendance');
+    async getAttendance(filters = {}) {
+        const response = await apiClient.get('/attendance', { params: attendanceParams(filters) });
+        return response.data;
+    },
+
+    async getAttendanceSummary(filters = {}) {
+        const response = await apiClient.get('/attendance/summary', { params: attendanceParams(filters) });
+        return response.data;
+    },
+
+    async closeAttendanceDay(date) {
+        const response = await apiClient.post('/attendance/close-day', null, {
+            params: date ? { date } : {},
+        });
+        return response.data;
+    },
+
+    async getPermissions(employeeId, status) {
+        const params = {};
+        if (employeeId) params.employee_id = employeeId;
+        if (status) params.status = status;
+        const response = await apiClient.get('/permissions', { params });
+        return response.data;
+    },
+
+    async getPermissionBalance(employeeId) {
+        const response = await apiClient.get(`/permissions/balance/${employeeId}`);
+        return response.data;
+    },
+
+    async createPermission(data) {
+        const response = await apiClient.post('/permissions', data);
+        return response.data;
+    },
+
+    async reviewPermission(permissionId, approve) {
+        const response = await apiClient.patch(`/permissions/${permissionId}/review`, { approve });
         return response.data;
     },
 
@@ -47,7 +94,11 @@ export const apiService = {
         return response.data;
     },
 
-    // 📸 FACE RECOGNITION
+    exportAttendanceCsvUrl(filters = {}) {
+        const params = new URLSearchParams(attendanceParams(filters));
+        return `${API_BASE_URL}/attendance/export/csv?${params.toString()}`;
+    },
+
     async registerFace(employeeId, imagesBase64Array) {
         const response = await apiClient.post('/register-face', {
             employee_id: employeeId.toString(),
@@ -62,8 +113,7 @@ export const apiService = {
         });
         return response.data;
     },
-    
-    // ⚙️ ADMIN DB RESET
+
     async resetEmployees() {
         const response = await apiClient.delete('/admin/reset-employees');
         return response.data;
@@ -79,4 +129,3 @@ export const apiService = {
         return response.data;
     }
 };
-
